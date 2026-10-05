@@ -1,0 +1,44 @@
+# Regression tests for sample_app/calculator.py
+# "defaults" apply to every test in this file (tags are combined, everything else can be overridden).
+
+defaults:
+  tags: [calculator]
+  timeout: 10
+
+tests:
+  - name: calculator_add
+    description: Adding two whole numbers
+    command: python sample_app/calculator.py add 2 3
+    expected_output: "5"
+    tags: [smoke]
+
+  - name: calculator_subtract_negative_result
+    command: python sample_app/calculator.py sub 2 10
+    expected_output: "-8"
+
+  - name: calculator_multiply_decimals
+    command: python sample_app/calculator.py mul 2.5 4
+    expected_output: "10"
+
+  - name: calculator_divide
+    command: python sample_app/calculator.py div 7 2
+    expected_output: "3.5"
+    tags: [smoke]
+
+  - name: calculator_divide_by_zero
+    description: Dividing by zero should fail cleanly with a helpful message
+    command: python sample_app/calculator.py div 1 0
+    expected_exit_code: 1
+    expected_stderr_contains: ["cannot divide by zero"]
+    tags: [negative]
+
+  - name: calculator_unknown_operation
+    description: Unknown operations are rejected by argparse with exit code 2
+    command: python sample_app/calculator.py pow 2 3
+    expected_exit_code: 2
+    expected_stderr_contains: ["invalid choice"]
+    tags: [negative]
+
+  - name: calculator_help
+    command: ["python", "sample_app/calculator.py", "--help"]
+    expected_output_contains: ["Simple calculator", "add,sub,mul,div"]

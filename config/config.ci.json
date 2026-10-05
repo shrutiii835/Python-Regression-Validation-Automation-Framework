@@ -1,0 +1,12 @@
+{
+  "test_dir": "test_suites",
+  "report_dir": "reports",
+  "log_dir": "logs",
+  "log_level": "WARNING",
+  "workers": 4,
+  "retries": 2,
+  "retry_delay": 1.0,
+  "default_timeout": 60,
+  "tags": [],
+  "history_db": ".regress/history.db"
+}

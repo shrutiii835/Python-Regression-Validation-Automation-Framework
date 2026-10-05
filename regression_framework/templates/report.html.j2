@@ -1,0 +1,233 @@
+{#- Regression report dashboard. Rendered by reporters/html_report.py. -#}
+{%- set s = report.summary -%}
+{%- set ok = s.failed == 0 -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regression Report{% if report.run_number %} #{{ report.run_number }}{% endif %}</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #667085; --border: #e3e6ec;
+    --pass: #12805c; --pass-bg: #e3f5ec; --fail: #c0322b; --fail-bg: #fdeceb;
+    --flaky: #a15c00; --flaky-bg: #fff3dc; --skip: #667085; --skip-bg: #eef0f3;
+    --accent: #3b5bdb; --code-bg: #f2f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218; --card: #171b23; --text: #e6e8ee; --muted: #9aa3b2; --border: #2a303c;
+      --pass: #4cc38a; --pass-bg: #12301f; --fail: #ff6b63; --fail-bg: #3a1614;
+      --flaky: #f5b14c; --flaky-bg: #3a2a0d; --skip: #9aa3b2; --skip-bg: #232833;
+      --accent: #7c95ff; --code-bg: #10141b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font-size: 24px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 18px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .pill { padding: 3px 12px; border-radius: 999px; font-weight: 700; font-size: 12px; letter-spacing: .05em; }
+  .pill.pass { background: var(--pass-bg); color: var(--pass); }
+  .pill.fail { background: var(--fail-bg); color: var(--fail); }
+  .meta { color: var(--muted); margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
+  .banner { border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-weight: 600; }
+  .banner.bad { background: var(--fail-bg); color: var(--fail); }
+  .banner.good { background: var(--pass-bg); color: var(--pass); }
+  .banner code { font-weight: 400; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat .value { font-size: 26px; font-weight: 700; }
+  .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .stat .sub { color: var(--muted); font-size: 12px; }
+  .c-pass { color: var(--pass); } .c-fail { color: var(--fail); } .c-flaky { color: var(--flaky); } .c-skip { color: var(--skip); }
+
+  .bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--skip-bg); margin-top: 4px; }
+  .bar span { display: block; height: 100%; }
+
+  .trend svg { width: 100%; height: 150px; display: block; }
+  .trend .axis { stroke: var(--border); }
+  .trend text { fill: var(--muted); font-size: 10px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .chip { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 999px;
+          padding: 4px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .search { margin-left: auto; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--card); color: var(--text); font: inherit; min-width: 220px; }
+
+  details.test { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--card); }
+  details.test[data-status="failed"] { border-left: 4px solid var(--fail); }
+  details.test[data-status="flaky"] { border-left: 4px solid var(--flaky); }
+  details.test[data-status="passed"] { border-left: 4px solid var(--pass); }
+  details.test[data-status="skipped"] { border-left: 4px solid var(--skip); }
+  details.test > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  details.test > summary::-webkit-details-marker { display: none; }
+  .name { font-weight: 600; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; }
+  .b-passed { background: var(--pass-bg); color: var(--pass); }
+  .b-failed, .b-new_failure { background: var(--fail-bg); color: var(--fail); }
+  .b-flaky, .b-still_failing { background: var(--flaky-bg); color: var(--flaky); }
+  .b-skipped, .b-new_test { background: var(--skip-bg); color: var(--skip); }
+  .b-fixed { background: var(--pass-bg); color: var(--pass); }
+  .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+  .right { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .body { padding: 0 14px 14px; border-top: 1px solid var(--border); }
+  .body h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; letter-spacing: .04em; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;
+        margin: 0; overflow-x: auto; white-space: pre; }
+  pre .line { display: block; }
+  .failure { color: var(--fail); font-weight: 600; }
+  .diff-add { color: var(--pass); background: var(--pass-bg); }
+  .diff-del { color: var(--fail); background: var(--fail-bg); }
+  .diff-hunk { color: var(--accent); }
+  .diff-meta { color: var(--muted); }
+  .empty { color: var(--muted); text-align: center; padding: 24px; display: none; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 30px; }
+  @media (max-width: 600px) { .search { margin-left: 0; width: 100%; } .right { margin-left: 0; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Regression Report{% if report.run_number %} <span style="color:var(--muted)">#{{ report.run_number }}</span>{% endif %}</h1>
+    <span class="pill {{ 'pass' if ok else 'fail' }}">{{ 'PASSED' if ok else 'FAILED' }}</span>
+  </header>
+  <div class="meta">
+    <span>🕒 {{ report.started_at|replace("T", " ") }}</span>
+    <span>🌿 <code>{{ report.git_branch }}</code> @ <code>{{ report.git_commit }}</code></span>
+    <span>⚙️ {{ report.workers }} parallel workers</span>
+  </div>
+
+  {%- set cmp = report.comparison %}
+  {%- if cmp and cmp.new_failures %}
+  <div class="banner bad">🔴 {{ cmp.new_failures|length }} new failure(s) since run #{{ cmp.previous_run }}:
+    {% for name in cmp.new_failures %}<code>{{ name }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</div>
+  {%- endif %}
+  {%- if cmp and cmp.fixed %}
+  <div class="banner good">🟢 {{ cmp.fixed|length }} fixed since run #{{ cmp.previous_run }}:
+    {% for name in cmp.fixed %}<code>{{ name }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</div>
+  {%- endif %}
+
+  <section class="stats">
+    <div class="stat"><div class="label">Total</div><div class="value">{{ s.total }}</div></div>
+    <div class="stat"><div class="label">Passed</div><div class="value c-pass">{{ s.passed }}</div></div>
+    <div class="stat"><div class="label">Failed</div><div class="value c-fail">{{ s.failed }}</div></div>
+    <div class="stat"><div class="label">Flaky</div><div class="value c-flaky">{{ s.flaky }}</div></div>
+    <div class="stat"><div class="label">Skipped</div><div class="value c-skip">{{ s.skipped }}</div></div>
+    <div class="stat"><div class="label">Pass rate</div><div class="value">{{ s.pass_rate }}%</div>
+      {%- set denom = s.total if s.total else 1 %}
+      <div class="bar">
+        <span style="width:{{ (s.passed - s.flaky) / denom * 100 }}%;background:var(--pass)"></span>
+        <span style="width:{{ s.flaky / denom * 100 }}%;background:var(--flaky)"></span>
+        <span style="width:{{ s.failed / denom * 100 }}%;background:var(--fail)"></span>
+      </div></div>
+    <div class="stat"><div class="label">Duration</div><div class="value">{{ s.wall_time }}s</div>
+      <div class="sub">{{ s.speedup }}× faster in parallel</div></div>
+  </section>
+
+  {%- if report.trend|length > 1 %}
+  {%- set runs = report.trend %}
+  {%- set slot = 900 / runs|length %}
+  {%- set bw = [slot * 0.6, 40]|min %}
+  <section class="card trend">
+    <h2>Pass rate trend · last {{ runs|length }} runs</h2>
+    <svg viewBox="0 0 920 150" preserveAspectRatio="none" role="img" aria-label="Pass rate per run">
+      <line class="axis" x1="10" y1="120" x2="910" y2="120"/>
+      <line class="axis" x1="10" y1="20" x2="910" y2="20" stroke-dasharray="3 4"/>
+      <text x="908" y="15" text-anchor="end">100%</text>
+      {%- for run in runs %}
+      {%- set h = run.pass_rate %}
+      {%- set x = 10 + slot * loop.index0 + (slot - bw) / 2 %}
+      {%- set color = 'var(--pass)' if run.failed == 0 else ('var(--flaky)' if run.pass_rate >= 80 else 'var(--fail)') %}
+      <rect x="{{ x }}" y="{{ 120 - h }}" width="{{ bw }}" height="{{ [h, 1]|max }}" rx="3" fill="{{ color }}"
+            {% if loop.last %}stroke="var(--text)" stroke-width="1.5"{% endif %}>
+        <title>Run #{{ run.id }} · {{ run.pass_rate }}% · {{ run.failed }} failed · {{ run.git_branch }}@{{ run.git_commit }}</title>
+      </rect>
+      <text x="{{ x + bw / 2 }}" y="136" text-anchor="middle">#{{ run.id }}</text>
+      {%- endfor %}
+    </svg>
+  </section>
+  {%- endif %}
+
+  {%- set counts = {'failed': s.failed, 'flaky': s.flaky, 'passed': s.passed - s.flaky, 'skipped': s.skipped} %}
+  <section class="card">
+    <h2>Test results</h2>
+    <div class="toolbar">
+      <button class="chip active" data-filter="all">All {{ s.total }}</button>
+      {%- for key in ['failed', 'flaky', 'passed', 'skipped'] %}
+      <button class="chip" data-filter="{{ key }}">{{ key|capitalize }} {{ counts[key] }}</button>
+      {%- endfor %}
+      <input class="search" id="search" type="search" placeholder="Search name or tag…">
+    </div>
+
+    {#- Results arrive sorted: failed first, then flaky, passed, skipped. #}
+    {%- for r in report.results %}
+    {%- set key = r.display_status|lower %}
+    <details class="test" data-status="{{ key }}" data-search="{{ (r.name ~ ' ' ~ r.tags|join(' '))|lower }}"{% if key == 'failed' %} open{% endif %}>
+      <summary>
+        <span class="badge b-{{ key }}">{{ r.display_status }}</span>
+        <span class="name">{{ r.name }}</span>
+        {%- if r.change in ['new_failure', 'fixed', 'still_failing', 'new_test'] %}
+        <span class="badge b-{{ r.change }}">{{ r.change|replace('_', ' ')|upper }}</span>
+        {%- endif %}
+        {%- for tag in r.tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+        <span class="right">{% if r.attempts > 1 %}{{ r.attempts }} attempts · {% endif %}{{ '%.2f'|format(r.duration) }}s</span>
+      </summary>
+      <div class="body">
+        {%- if r.description %}<h3>Description</h3><div>{{ r.description }}</div>{% endif %}
+        {%- if r.skip_reason %}<h3>Skipped because</h3><div>{{ r.skip_reason }}</div>{% endif %}
+        <h3>Command</h3>
+        <pre>$ {{ r.command }}</pre>
+        {%- if r.failures %}
+        <h3>Why it failed</h3>
+        <pre>{% for message in r.failures %}{% for line in message.splitlines() %}<span class="line {{ 'failure' if loop.first else line|diff_class }}">{{ line }}</span>{% endfor %}{% endfor %}</pre>
+        {%- endif %}
+        {%- if r.stdout %}<h3>Output (stdout)</h3><pre>{{ r.stdout }}</pre>{% endif %}
+        {%- if r.stderr %}<h3>Errors (stderr)</h3><pre>{{ r.stderr }}</pre>{% endif %}
+        <h3>Defined in</h3><code>{{ r.source_file }}</code>
+        {%- if r.exit_code is not none %} · exit code <code>{{ r.exit_code }}</code>{% endif %}
+      </div>
+    </details>
+    {%- endfor %}
+    <div class="empty" id="empty">No tests match this filter.</div>
+  </section>
+
+  <footer>Generated by regression-framework v{{ version }}</footer>
+</main>
+<script>
+  // Filter by status and search by name/tag - no libraries needed.
+  const chips = document.querySelectorAll(".chip");
+  const tests = document.querySelectorAll("details.test");
+  const search = document.getElementById("search");
+  let currentFilter = "all";
+
+  function applyFilters() {
+    const text = search.value.trim().toLowerCase();
+    let visible = 0;
+    tests.forEach(test => {
+      const show = (currentFilter === "all" || test.dataset.status === currentFilter)
+                   && test.dataset.search.includes(text);
+      test.style.display = show ? "" : "none";
+      if (show) visible++;
+    });
+    document.getElementById("empty").style.display = visible ? "none" : "block";
+  }
+
+  chips.forEach(chip => chip.addEventListener("click", () => {
+    chips.forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+    currentFilter = chip.dataset.filter;
+    applyFilters();
+  }));
+  search.addEventListener("input", applyFilters);
+</script>
+</body>
+</html>

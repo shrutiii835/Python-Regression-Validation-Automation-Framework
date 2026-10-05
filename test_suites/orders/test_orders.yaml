@@ -1,0 +1,56 @@
+# Regression tests for sample_app/order_service.py
+# Shows: stdin input, JSON field checks, regex checks and golden-file snapshots.
+
+defaults:
+  tags: [orders]
+  command: python sample_app/order_service.py quote
+
+tests:
+  - name: order_simple_quote
+    description: One item, no coupon, US tax (8%)
+    stdin: '{"items": [{"sku": "BOOK", "price": 12.50, "qty": 2}], "country": "US"}'
+    expected_json: {subtotal: 25.0, discount: 0.0, tax: 2.0, total: 27.0}
+    tags: [smoke]
+
+  - name: order_with_coupon_us
+    description: Tax must be charged on the price AFTER the discount
+    stdin: '{"items": [{"sku": "BOOK", "price": 40, "qty": 2}, {"sku": "PEN", "price": 2.5, "qty": 4}], "coupon": "SAVE10", "country": "US"}'
+    expected_json: {item_count: 6, subtotal: 90.0, discount: 9.0, tax: 6.48, total: 87.48}
+    tags: [smoke, pricing]
+
+  - name: order_with_coupon_uk
+    stdin: '{"items": [{"sku": "LAMP", "price": 80, "qty": 1}], "coupon": "SAVE20", "country": "UK"}'
+    expected_json: {subtotal: 80.0, discount: 16.0, tax: 12.8, total: 76.8, country: UK}
+    tags: [pricing]
+
+  - name: order_currency_format
+    description: Totals are always shown with at most two decimal places
+    stdin: '{"items": [{"sku": "GUM", "price": 0.99, "qty": 3}], "country": "IN"}'
+    expected_output_regex: '"total": \d+\.\d{1,2}\b'
+
+  - name: order_receipt_snapshot
+    description: The printed receipt must match the approved "golden" file exactly
+    command: python sample_app/order_service.py quote --format text
+    stdin: |
+      {"items": [{"sku": "BOOK", "price": 40, "qty": 2}, {"sku": "PEN", "price": 2.5, "qty": 4}],
+       "coupon": "SAVE10", "country": "US"}
+    expected_output_file: test_suites/orders/snapshots/receipt_us_save10.txt
+    tags: [pricing]
+
+  - name: order_rejects_unknown_coupon
+    stdin: '{"items": [{"sku": "BOOK", "price": 10, "qty": 1}], "coupon": "FREE100"}'
+    expected_exit_code: 1
+    expected_stderr_contains: ["unknown coupon 'FREE100'"]
+    tags: [negative]
+
+  - name: order_rejects_empty_order
+    stdin: '{"items": []}'
+    expected_exit_code: 1
+    expected_stderr_contains: ["order has no items"]
+    tags: [negative]
+
+  - name: order_rejects_invalid_json
+    stdin: "this is not json"
+    expected_exit_code: 2
+    expected_stderr_contains: ["invalid JSON input"]
+    tags: [negative]

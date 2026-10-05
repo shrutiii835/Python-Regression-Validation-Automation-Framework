@@ -1,0 +1,41 @@
+{
+  "defaults": {
+    "tags": ["platform"]
+  },
+  "tests": [
+    {
+      "name": "health_status_ok",
+      "description": "Service reports healthy dependencies",
+      "command": "python sample_app/health_service.py",
+      "expected_json": {"status": "ok", "checks": {"database": "ok", "cache": "ok"}},
+      "tags": ["smoke"]
+    },
+    {
+      "name": "health_version_format",
+      "description": "Version must follow semantic versioning (MAJOR.MINOR.PATCH)",
+      "command": "python sample_app/health_service.py",
+      "expected_output_regex": "\"version\": \"\\d+\\.\\d+\\.\\d+\""
+    },
+    {
+      "name": "health_response_time",
+      "description": "Performance budget: the health check must respond within 1 second",
+      "command": "python sample_app/health_service.py --latency 0.2",
+      "max_duration": 1.0,
+      "tags": ["performance"]
+    },
+    {
+      "name": "health_after_cold_start",
+      "description": "First call fails while the service warms up; the retry should succeed (shows as FLAKY)",
+      "command": "python sample_app/health_service.py",
+      "env": {"COLD_START": "1"},
+      "retries": 2,
+      "expected_json": {"status": "ok"}
+    },
+    {
+      "name": "health_tls_certificate",
+      "description": "Checks the TLS certificate of the public endpoint",
+      "command": "python sample_app/health_service.py --tls",
+      "skip": "TLS is not configured in the demo environment"
+    }
+  ]
+}

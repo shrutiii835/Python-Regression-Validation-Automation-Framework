@@ -1,0 +1,15 @@
+# Main settings for the regression framework.
+# Command-line options override these values (see: regress run --help).
+
+test_dir: test_suites            # where suite files (test_*.yaml / test_*.json) live
+report_dir: reports              # HTML, JSON, JUnit XML and Markdown reports
+log_dir: logs                    # full log: logs/regression.log
+log_level: WARNING               # console verbosity: DEBUG, INFO, WARNING or ERROR
+
+workers: 4                       # tests run in parallel (1 = one after another)
+retries: 1                       # extra attempts before a test is marked FAILED
+retry_delay: 0.2                 # seconds to wait between attempts
+default_timeout: 30              # seconds; a test or suite can set its own "timeout"
+
+tags: []                         # e.g. [smoke] to run only smoke tests; empty = all
+history_db: .regress/history.db  # SQLite run history; set to "" to disable
